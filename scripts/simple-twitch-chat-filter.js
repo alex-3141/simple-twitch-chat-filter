@@ -44,8 +44,13 @@ class Lookup {
   }
 }
 
+function onSettingUpdate(key, newValue, oldValue){
+
+}
+
 let observer = new MutationObserver((mutations) => {
-  mutations.forEach((mutation) => {
+  if(getSetting('filterActive')){
+    mutations.forEach((mutation) => {
       if (mutation.addedNodes.length) {
           Array.from(mutation.addedNodes).forEach((newNode) => {
               // Check if the added node has the desired property
@@ -62,6 +67,7 @@ let observer = new MutationObserver((mutations) => {
           });
       }
   });
+  }
 });
 
 // Configure the observer
@@ -69,12 +75,6 @@ let config = {
   childList: true, 
   subtree: true
 };
-
-function init() {
-  console.log('[Twitch Chat Spam Filter] Twitch Chat Spam Filter v0.1.0 loaded!');
-  // Start observing
-  observer.observe(document.body, config);
-}
 
 
 function processElement(newElement) {
@@ -100,13 +100,23 @@ function processElement(newElement) {
 
     processedMessage = processText(tokenizedMessage);
 
-    newElement.innerHTML = untokenize(processedMessage, tokenMap);    
+    setTimeout(() => {
+      newElement.innerHTML = untokenize(processedMessage, tokenMap);    
+    }, 500);
+    
 }
 
 function processText(tokenizedMessage){
     // Remove duplicate words
-    const regex = /(.{4,}?)(?=\1{2,})(?:(?=\1+\1))\1+/g;
-    const processedText = tokenizedMessage.replace(regex, (match, group1) => group1);
+    const sequenceLength = getSetting('minSequenceLength');
+    const repetitions = getSetting('replaceWithCount');
+    const spamThreshold = getSetting('spamThreshold');
+    const regex = new RegExp(`(.{${sequenceLength},}?)(?=\\1{${spamThreshold},})(?:(?=\\1+\\1))\\1+`, 'g');
+    // const regex = /(.{4,}?)(?=\1{2,})(?:(?=\1+\1))\1+/g;
+    const processedText = tokenizedMessage.replace(regex, (match, group1) => {
+      return group1.repeat(repetitions);
+    });
+    
     return processedText;
 }
 
@@ -158,4 +168,13 @@ function untokenize(processedMessage, tokenMap){
     return textToElement(processedMessage);
 }
 
-init();
+function init() {
+  console.log('[Simple Twitch Chat Filter] v0.1.0 loaded!');
+
+  // Start observing
+  observer.observe(document.body, config);
+}
+
+loadSettings().then(() => {
+  init();
+});

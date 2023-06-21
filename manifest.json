@@ -2,9 +2,10 @@
   "manifest_version": 3,
   "name": "Twitch Chat Spam Filter",
   "version": "0.1.0",
-  "description": "A simple twitch chat filter to reduce spam.",
-  "permissions": ["activeTab"],
+  "description": "A simple twitch chat filter to reduce or remove spam.",
+  "permissions": ["activeTab", "storage"],
   "action": {
+    "default_popup": "popup/popup.html",
     "default_icon": {
       "128": "icon.png"
     }
@@ -18,7 +19,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.twitch.tv/*"],
-      "js": ["simple-twitch-chat-filter.js"]
+      "js": ["/scripts/settings.js", "/scripts/simple-twitch-chat-filter.js"]
     }
   ]
 }

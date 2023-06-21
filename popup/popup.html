@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Babbler</title>
+    <script src="popup.js"></script>
+    <script src="/scripts/settings.js"></script>
+    <style>
+        :root {
+            --main-color: #772ce8;
+            --main-bg-color: #f7f7f8;
+        }
+        body {
+            background-color: var(--main-bg-color);
+            color: var(--main-color);
+        }
+        table {
+            border-collapse: collapse;
+            height: 100%;
+            width: 300px;
+        }
+        a {
+            color: var(--main-color);
+            font-weight: bold;
+        }
+        th, td {
+            text-align: center;
+            font-size: 1.2em;
+            padding: 5px;
+            width: 50%;
+        }
+        .rowtitle {
+            height: 10px;
+            width: 100%;
+            padding: 2px
+        }
+        .blocktitle {
+            border-radius: 5px;
+            height: 20px;
+            width: 100%;
+            padding: 2px;
+            font-weight: bold;
+            color: var(--main-bg-color);
+            background-color: var(--main-color);
+        }
+        .title {
+            font-weight: bold;
+            font-size: 2em;
+            height: 10px;
+            width: 100%;
+            padding: 2px;
+        }
+        .spacer {
+            height: 20px;
+        }
+        button {
+            font-size: 1.2em;
+            border: 2px solid var(--main-color);
+            border-radius: 5px;
+            color: var(--main-color);
+            background-color: transparent;
+            cursor: pointer;
+            outline: none;
+            width: 95%;
+            height: 65px;
+            padding: 3px 6px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        button.enabled {
+            background-color: var(--main-color);
+            color: var(--main-bg-color);
+        }
+        .reset {
+            width: 1.5em;
+            height: 1.5em;
+            filter: 'brightness(2%)';
+        }
+        .slider {
+            display: flex;
+            align-items: center;
+        }
+        .sliderInfo {
+            width: 7%;
+            padding: 4px;
+        }
+        .sliderText {
+            color: var(--debug-color);
+            background: transparent;
+            border: none;
+            outline: none;
+            width: 100%;
+            display: flex;
+            align-items: right;
+        }
+        input[type=range] {
+            accent-color: var(--main-color);
+        }
+
+    </style>
+</head>
+<body>
+    <table>
+        <tr class="spacer"></tr>
+        <tr><td class="title" colspan="2">Simple Twitch Chat Filter</td></tr>
+        <tr class="spacer"></tr>
+
+
+        <tr>
+            <td><button id="filterActiveButton">Filter Active</button></td>
+            <td><button id="removeMessageButton">Remove Entire Message</button></td>
+        </tr>
+
+        <tr class="spacer"></tr>
+
+        <!-- Minimum Sequence Length -->
+        <tr style="display: none;"><td class="rowtitle" colspan="2">Minimum number of characters in each word</td></tr>
+        <tr style="display: none;"><td colspan="2">
+            <div class="slider">
+                <div style="flex-grow: 1;">
+                    <input type="range" min="2" max="6" value="0" step="1" id="minSequenceLengthSlider" style="width: 100%;">
+                </div>
+                <div class="sliderInfo">
+                    <input id="minSequenceLengthSliderText" class="sliderText" placeholder="4" autocomplete="off">
+                </div>
+            </div>
+        </td></tr>
+
+        <!-- Spam Threshold -->
+        <tr><td class="rowtitle" colspan="2">Number of times a word needs to repeat for the message to be considered spam</td></tr>
+        <tr><td colspan="2">
+            <div class="slider">
+                <div style="flex-grow: 1;">
+                    <input type="range" min="2" max="6" value="0" step="1" id="spamThresholdSlider" style="width: 100%;">
+                </div>
+                <div class="sliderInfo">
+                    <input id="spamThresholdSliderText" class="sliderText" placeholder="3" autocomplete="off">
+                </div>
+            </div>
+        </td></tr>
+
+        <!-- Limit to n repetitions -->
+        <tr><td class="rowtitle" colspan="2">Limit the repeated word to appear this many times</td></tr>
+        <tr><td colspan="2">
+            <div class="slider">
+                <div style="flex-grow: 1;">
+                    <input type="range" min="0" max="6" value="0" step="1" id="replaceWithCountSlider" style="width: 100%;">
+                </div>
+                <div class="sliderInfo">
+                    <input id="replaceWithCountSliderText" class="sliderText" placeholder="4" autocomplete="off">
+                </div>
+            </div>
+        </td></tr>
+
+    </table>
+</body>
+</html>
