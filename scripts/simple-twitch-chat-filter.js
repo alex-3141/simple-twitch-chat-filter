@@ -72,8 +72,8 @@ const chatTypeSelectors = {
 
 function querySelectorEX(node, selector) {
   if (!(node instanceof Element)) {
-    console.log(node);
-    throw new Error("querySelectorEX: node is not an element");
+    console.error(node);
+    throw new Error("querySelectorEX: node is not an element. This should not happen.");
   }
   if(node.matches(selector) && node || node.querySelector(selector)){
     return node;
@@ -99,41 +99,15 @@ let observer = new MutationObserver((mutations) => {
               textSelector = selectors.textSelector;
               chatLine = querySelectorEX(newNode, lineSelector);
               if (chatLine) {
-                // console.log("Chat type: " + chatType);
                 break;
               }
             }
 
             if (chatLine) {
-              // console.log("chat line:");
-              // console.log(chatLine);
-              // console.log("container selector:");
-              // console.log(containerSelector);
               const container = chatLine.querySelector(containerSelector);
               processMessage(container, textSelector);
-              // for (const item of container.children) {
-              //   if (item.matches(textSelector)) {
-              //     console.log("text:");
-              //     console.log(item.textContent);
-              //   } else {
-              //     console.log("non-text:");
-              //     console.log(item);
-              //   }
-              // }
             }
           }
-
-          // // Check if the added node has the desired property
-          // if (newNode.nodeType === Node.ELEMENT_NODE && newNode.getAttribute('data-a-target') === 'chat-line-message-body') {
-          //   processElement(newNode);
-          // }
-
-          // // If the added node is the parent node of the target node
-          // if (newNode.childNodes.length) {
-          //     Array.from(newNode.querySelectorAll('[data-a-target="chat-line-message-body"]')).forEach((targetNode) => {
-          //       processElement(targetNode);
-          //     });
-          // }
         });
       }
     });
@@ -166,8 +140,6 @@ function processMessage(container, textSelector) {
     }
   }
 
-  // console.log(templateElement);
-  
   // Second pass to tokenize
   for (const fragment of container.children) {
     const textFragment = querySelectorEX(fragment, textSelector);
@@ -184,20 +156,15 @@ function processMessage(container, textSelector) {
     }
   }
 
-  // if(!templateElement){
-  //   console.log("No template element found");
-  //   return;
-  // }
-
-  // Append a whitespace character at the end to help the regex match all sequences
-  tokenizedMessage += " ";
+  // Append a whitespace character at the end to help the regex match all sequences, unless there are no text elements
+  if (templateElement){
+    tokenizedMessage += " ";
+  }
 
   processedMessage = processText(tokenizedMessage);
 
   setTimeout(() => {
     container.innerHTML = untokenize(processedMessage, tokenMap, templateElement, textSelector);
-    // set light red bg color on container to indicate change
-    container.style.backgroundColor = "#ffcccc";
   }, 500);
 }
 
@@ -256,12 +223,6 @@ function tokenToElement(token, tokenMap) {
 function textToElement(text, templateElement, selector) {
   querySelectorEX(templateElement, selector).textContent = escapeString(text);
   return templateElement.outerHTML;
-
-  // const span = document.createElement("span");
-  // span.className = "text-fragment";
-  // span.setAttribute("data-a-target", "chat-message-text");
-  // span.textContent = escapeString(text);
-  // return span.outerHTML;
 }
 
 function escapeString(text) {
@@ -272,8 +233,11 @@ function escapeString(text) {
 
 function untokenize(processedMessage, tokenMap, templateElement, textSelector) {
   if (tokenMap.size) {
+    // Create a regex to match all tokens, using | as a delimiter
     const tokens = Array.from(tokenMap.values()).join("|");
-    const parts = processedMessage.split(new RegExp(`(${tokens})`, "g"));
+    let parts = processedMessage.split(new RegExp(`(${tokens})`, "g"));
+    // Remove all empty strings from parts array. All entries will be strings so this filter can be used
+    parts = parts.filter((part) => part);
     return parts
       .map((part) =>
         tokenMap.hasValue(part)
