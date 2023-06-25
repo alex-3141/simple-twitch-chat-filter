@@ -44,132 +44,248 @@ class Lookup {
   }
 }
 
-function onSettingUpdate(key, newValue, oldValue){
+function onSettingUpdate(key, newValue, oldValue) {}
 
+// Query selectors required for the entire chat message line, the container for the message text, and a differentiator for text and non-text elements
+const chatTypeSelectors = {
+  twitchLive: {
+    lineSelector: '[data-a-target="chat-line-message"]', // The entire chat message line, including timestamp, username, etc. To be removed if the Remove Entire Message option is enabled
+    containerSelector: '[data-a-target="chat-line-message-body"]', // The lowest down element in which the user message elements are contained. Each child element is the highest unique root element of either a text element or a non-text element
+    textSelector: '[data-a-target="chat-message-text"]', // This selector will return the raw text content of a text segment
+  },
+  twitchVOD: {
+    lineSelector: ".vod-message",
+    containerSelector: ".video-chat__message",
+    textSelector: '[data-a-target="chat-message-text"]',
+  },
+  sevenTvLive: {
+    lineSelector: ".seventv-message",
+    containerSelector: ".seventv-chat-message-body",
+    textSelector: ".text-token",
+  },
+  sevenTvVOD: {
+    lineSelector: ".seventv-chat-vod-message-patched",
+    containerSelector: ".seventv-chat-message-body",
+    textSelector: ".text-token",
+  },
+};
+
+function querySelectorEX(node, selector) {
+  if (!(node instanceof Element)) {
+    console.log(node);
+    throw new Error("querySelectorEX: node is not an element");
+  }
+  if(node.matches(selector) && node || node.querySelector(selector)){
+    return node;
+  }
 }
 
 let observer = new MutationObserver((mutations) => {
-  if(getSetting('filterActive')){
+  if (getSetting("filterActive")) {
     mutations.forEach((mutation) => {
       if (mutation.addedNodes.length) {
-          Array.from(mutation.addedNodes).forEach((newNode) => {
-              // Check if the added node has the desired property
-              if (newNode.nodeType === Node.ELEMENT_NODE && newNode.getAttribute('data-a-target') === 'chat-line-message-body') {
-                processElement(newNode);
-              }
+        Array.from(mutation.addedNodes).forEach((newNode) => {
+          if (newNode.nodeType === Node.ELEMENT_NODE) {
+            // Check all of our line selectors until we get a match
 
-              // If the added node is the parent node of the target node
-              if (newNode.childNodes.length) {
-                  Array.from(newNode.querySelectorAll('[data-a-target="chat-line-message-body"]')).forEach((targetNode) => {
-                    processElement(targetNode);
-                  });
+            let chatLine, lineSelector, containerSelector, textSelector;
+
+            // Loop throuygh each chat type and check if the new node matches the line selector
+            for (const [chatType, selectors] of Object.entries(
+              chatTypeSelectors
+            )) {
+              lineSelector = selectors.lineSelector;
+              containerSelector = selectors.containerSelector;
+              textSelector = selectors.textSelector;
+              chatLine = querySelectorEX(newNode, lineSelector);
+              if (chatLine) {
+                // console.log("Chat type: " + chatType);
+                break;
               }
-          });
+            }
+
+            if (chatLine) {
+              // console.log("chat line:");
+              // console.log(chatLine);
+              // console.log("container selector:");
+              // console.log(containerSelector);
+              const container = chatLine.querySelector(containerSelector);
+              processMessage(container, textSelector);
+              // for (const item of container.children) {
+              //   if (item.matches(textSelector)) {
+              //     console.log("text:");
+              //     console.log(item.textContent);
+              //   } else {
+              //     console.log("non-text:");
+              //     console.log(item);
+              //   }
+              // }
+            }
+          }
+
+          // // Check if the added node has the desired property
+          // if (newNode.nodeType === Node.ELEMENT_NODE && newNode.getAttribute('data-a-target') === 'chat-line-message-body') {
+          //   processElement(newNode);
+          // }
+
+          // // If the added node is the parent node of the target node
+          // if (newNode.childNodes.length) {
+          //     Array.from(newNode.querySelectorAll('[data-a-target="chat-line-message-body"]')).forEach((targetNode) => {
+          //       processElement(targetNode);
+          //     });
+          // }
+        });
       }
-  });
+    });
   }
 });
 
 // Configure the observer
 let config = {
-  childList: true, 
-  subtree: true
+  childList: true,
+  subtree: true,
 };
 
-
-function processElement(newElement) {
-    const tokenMap = new Lookup();
-    let tokenizedMessage = '';
-    let processedMessage = '';
-    let originalTextContent = '';
-    // First pass to get original text content
-    for (const child of newElement.children) {
-        if (child.getAttribute('data-a-target') === 'chat-message-text') {
-            originalTextContent += child.textContent;
-        }
+// This function takes a container and the textSelector to pick out the text
+function processMessage(container, textSelector) {
+  const tokenMap = new Lookup();
+  let tokenizedMessage = "";
+  let processedMessage = "";
+  let originalTextContent = "";
+  let templateElement;
+  // First pass to get original text content. This is used to prevent token collisions later on
+  for (const fragment of container.children) {
+    const textFragment = querySelectorEX(fragment, textSelector);
+    if (textFragment) {
+      originalTextContent += textFragment.textContent;
+      // Get a copy of the text fragment element to use as a template
+      if(!templateElement){
+        templateElement = fragment.cloneNode(true);
+        querySelectorEX(templateElement, textSelector).textContent = '';
+      }
     }
-    // Second pass to tokenize
-    for (const child of newElement.children) {
-        if (child.className === 'text-fragment') {
-            tokenizedMessage += child.textContent;
-        } else {
-            const elementToken = elementToToken(child, originalTextContent, tokenizedMessage, tokenMap);
-            tokenizedMessage += elementToken;
-        }
+  }
+
+  // console.log(templateElement);
+  
+  // Second pass to tokenize
+  for (const fragment of container.children) {
+    const textFragment = querySelectorEX(fragment, textSelector);
+    if (textFragment) {
+      tokenizedMessage += textFragment.textContent;
+    } else {
+      const elementToken = elementToToken(
+        fragment,
+        originalTextContent,
+        tokenizedMessage,
+        tokenMap
+      );
+      tokenizedMessage += elementToken;
     }
+  }
 
-    processedMessage = processText(tokenizedMessage);
+  // if(!templateElement){
+  //   console.log("No template element found");
+  //   return;
+  // }
 
-    setTimeout(() => {
-      newElement.innerHTML = untokenize(processedMessage, tokenMap);    
-    }, 500);
-    
+  // Append a whitespace character at the end to help the regex match all sequences
+  tokenizedMessage += " ";
+
+  processedMessage = processText(tokenizedMessage);
+
+  setTimeout(() => {
+    container.innerHTML = untokenize(processedMessage, tokenMap, templateElement, textSelector);
+    // set light red bg color on container to indicate change
+    container.style.backgroundColor = "#ffcccc";
+  }, 500);
 }
 
-function processText(tokenizedMessage){
-    // Remove duplicate words
-    const sequenceLength = getSetting('minSequenceLength');
-    const repetitions = getSetting('replaceWithCount');
-    const spamThreshold = getSetting('spamThreshold');
-    const regex = new RegExp(`(.{${sequenceLength},}?)(?=\\1{${spamThreshold},})(?:(?=\\1+\\1))\\1+`, 'g');
-    // const regex = /(.{4,}?)(?=\1{2,})(?:(?=\1+\1))\1+/g;
-    const processedText = tokenizedMessage.replace(regex, (match, group1) => {
-      return group1.repeat(repetitions);
-    });
-    
-    return processedText;
+function processText(tokenizedMessage) {
+  // Remove duplicate words
+  const sequenceLength = getSetting("minSequenceLength");
+  const repetitions = getSetting("replaceWithCount");
+  const spamThreshold = getSetting("spamThreshold");
+  // const regex = /(.{4,}?)(?=\1{2,})(?:(?=\1+\1))\1+/g;
+  const regex = new RegExp(
+    `(.{${sequenceLength},}?)(?=\\1{${spamThreshold},})(?:(?=\\1+\\1))\\1+`,
+    "g"
+  );
+  const processedText = tokenizedMessage.replace(regex, (match, group1) => {
+    return group1.repeat(repetitions);
+  });
+
+  return processedText;
 }
 
-function elementToToken(element, originalTextContent, tokenizedMessage, tokenMap) {
-    const htmlContent = element.outerHTML;
-    if (!tokenMap.has(htmlContent)) {
-        let token;
-        do {
-            token = generateToken();
-        } while (tokenMap.has(token) || originalTextContent.includes(token) || tokenizedMessage.includes(token));
+function elementToToken(
+  element,
+  originalTextContent,
+  tokenizedMessage,
+  tokenMap
+) {
+  const htmlContent = element.outerHTML;
+  if (!tokenMap.has(htmlContent)) {
+    let token;
+    do {
+      token = generateToken();
+    } while (
+      tokenMap.has(token) ||
+      originalTextContent.includes(token) ||
+      tokenizedMessage.includes(token)
+    );
 
-        tokenMap.set(htmlContent, token);
-    }
-    return tokenMap.get(htmlContent);
+    tokenMap.set(htmlContent, token);
+  }
+  return tokenMap.get(htmlContent);
 }
 
-function generateToken(){
-    return Math.random().toString(36).substring(2, 15);
+function generateToken() {
+  return Math.random().toString(36).substring(2, 15);
 }
 
 function tokenToElement(token, tokenMap) {
-    if (tokenMap.hasValue(token)) {
-        return tokenMap.getKey(token);
-    } else {
-        throw new Error("Token not found in map: " + token);
-    }
+  if (tokenMap.hasValue(token)) {
+    return tokenMap.getKey(token);
+  } else {
+    throw new Error("Token not found in map: " + token);
+  }
 }
 
-function textToElement(text){
-    const span = document.createElement('span');
-    span.className = 'text-fragment';
-    span.setAttribute('data-a-target', 'chat-message-text');
-    span.textContent = escapeString(text);
-    return span.outerHTML;
+// Injects text into an element using the supplied selector
+function textToElement(text, templateElement, selector) {
+  querySelectorEX(templateElement, selector).textContent = escapeString(text);
+  return templateElement.outerHTML;
+
+  // const span = document.createElement("span");
+  // span.className = "text-fragment";
+  // span.setAttribute("data-a-target", "chat-message-text");
+  // span.textContent = escapeString(text);
+  // return span.outerHTML;
 }
 
-function escapeString(text){
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(text));
-    return div.innerHTML;
+function escapeString(text) {
+  const div = document.createElement("div");
+  div.appendChild(document.createTextNode(text));
+  return div.innerHTML;
 }
 
-function untokenize(processedMessage, tokenMap){
-  if(tokenMap.size){
-    const tokens = Array.from(tokenMap.values()).join('|');
-    const parts = processedMessage.split(new RegExp(`(${tokens})`, 'g'));
-    return parts.map(part => tokenMap.hasValue(part) ? tokenToElement(part, tokenMap) : textToElement(part)).join('');
-  } else
-    return textToElement(processedMessage);
+function untokenize(processedMessage, tokenMap, templateElement, textSelector) {
+  if (tokenMap.size) {
+    const tokens = Array.from(tokenMap.values()).join("|");
+    const parts = processedMessage.split(new RegExp(`(${tokens})`, "g"));
+    return parts
+      .map((part) =>
+        tokenMap.hasValue(part)
+          ? tokenToElement(part, tokenMap)
+          : textToElement(part, templateElement, textSelector)
+      )
+      .join("");
+  } else return textToElement(processedMessage, templateElement, textSelector);
 }
 
 function init() {
-  console.log('[Simple Twitch Chat Filter] v0.1.0 loaded!');
+  console.log("[Simple Twitch Chat Filter] v0.1.0 loaded!");
 
   // Start observing
   observer.observe(document.body, config);
