@@ -112,7 +112,9 @@ let observer = new MutationObserver((mutations) => {
             if (processedText.trim() !== container.innerHTML.trim()) {
               // Remove the chat line if the processed text is empty or the Remove Entire Message option is enabled
               if (getSetting("removeMessage") || processedText.trim() === "") {
-                chatLine.remove();
+                // Removing the chat line from the DOM has some strange side effects, so we'll just hide it instead
+                //chatLine.remove();
+                chatLine.style.display = "none";
               } else {
                 container.innerHTML = processedText;
               }
