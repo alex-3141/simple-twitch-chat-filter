@@ -55,7 +55,7 @@ const chatTypeSelectors = {
   },
   twitchVOD: {
     lineSelector: ".vod-message",
-    containerSelector: ".video-chat__message",
+    containerSelector: ".video-chat__message > span[class='']",
     textSelector: '[data-a-target="chat-message-text"]',
   },
   sevenTvLive: {
@@ -70,14 +70,15 @@ const chatTypeSelectors = {
   },
 };
 
-function querySelectorEX(node, selector) {
+function querySelectorIncludingRoot(node, selector) {
   if (!(node instanceof Element)) {
     console.error(node);
-    throw new Error("querySelectorEX: node is not an element. This should not happen.");
+    throw new Error("querySelectorIncludingRoot: node is not an element. This should not happen.");
   }
-  if(node.matches(selector) && node || node.querySelector(selector)){
+  if(node.matches(selector) && node){
     return node;
   }
+  return node.querySelector(selector);
 }
 
 let observer = new MutationObserver((mutations) => {
@@ -97,7 +98,7 @@ let observer = new MutationObserver((mutations) => {
               lineSelector = selectors.lineSelector;
               containerSelector = selectors.containerSelector;
               textSelector = selectors.textSelector;
-              chatLine = querySelectorEX(newNode, lineSelector);
+              chatLine = querySelectorIncludingRoot(newNode, lineSelector);
               if (chatLine) {
                 break;
               }
@@ -105,7 +106,17 @@ let observer = new MutationObserver((mutations) => {
 
             if (chatLine) {
               const container = chatLine.querySelector(containerSelector);
-              processMessage(container, textSelector);
+              const processedText = processMessage(container, textSelector);
+
+            // If the text was modified
+            if (processedText.trim() !== container.innerHTML.trim()) {
+              // Remove the chat line if the processed text is empty or the Remove Entire Message option is enabled
+              if (getSetting("removeMessage") || processedText.trim() === "") {
+                chatLine.remove();
+              } else {
+                container.innerHTML = processedText;
+              }
+            }
             }
           }
         });
@@ -124,25 +135,26 @@ let config = {
 function processMessage(container, textSelector) {
   const tokenMap = new Lookup();
   let tokenizedMessage = "";
-  let processedMessage = "";
   let originalTextContent = "";
   let templateElement;
   // First pass to get original text content. This is used to prevent token collisions later on
   for (const fragment of container.children) {
-    const textFragment = querySelectorEX(fragment, textSelector);
+    const textFragment = querySelectorIncludingRoot(fragment, textSelector);
     if (textFragment) {
       originalTextContent += textFragment.textContent;
       // Get a copy of the text fragment element to use as a template
       if(!templateElement){
         templateElement = fragment.cloneNode(true);
-        querySelectorEX(templateElement, textSelector).textContent = '';
+        // Clear the text content of the template element
+        // This change isn't being applied for some reason, but it isn't needed anyway as the text is replaced later
+        // querySelectorIncludingRoot(templateElement, textSelector).textContent = '';
       }
     }
   }
 
   // Second pass to tokenize
   for (const fragment of container.children) {
-    const textFragment = querySelectorEX(fragment, textSelector);
+    const textFragment = querySelectorIncludingRoot(fragment, textSelector);
     if (textFragment) {
       tokenizedMessage += textFragment.textContent;
     } else {
@@ -161,11 +173,9 @@ function processMessage(container, textSelector) {
     tokenizedMessage += " ";
   }
 
-  processedMessage = processText(tokenizedMessage);
+  const processedMessage = processText(tokenizedMessage).trim();
 
-  setTimeout(() => {
-    container.innerHTML = untokenize(processedMessage, tokenMap, templateElement, textSelector);
-  }, 500);
+  return untokenize(processedMessage, tokenMap, templateElement, textSelector);
 }
 
 function processText(tokenizedMessage) {
@@ -173,6 +183,7 @@ function processText(tokenizedMessage) {
   const sequenceLength = getSetting("minSequenceLength");
   const repetitions = getSetting("replaceWithCount");
   const spamThreshold = getSetting("spamThreshold");
+  // Find sequences of at least 4 characters (.{4,}?) that repeat at least 2 times (?=\1{2,}) and replace with one occurance of the matched repeated sequence
   // const regex = /(.{4,}?)(?=\1{2,})(?:(?=\1+\1))\1+/g;
   const regex = new RegExp(
     `(.{${sequenceLength},}?)(?=\\1{${spamThreshold},})(?:(?=\\1+\\1))\\1+`,
@@ -221,7 +232,7 @@ function tokenToElement(token, tokenMap) {
 
 // Injects text into an element using the supplied selector
 function textToElement(text, templateElement, selector) {
-  querySelectorEX(templateElement, selector).textContent = escapeString(text);
+  querySelectorIncludingRoot(templateElement, selector).textContent = escapeString(text);
   return templateElement.outerHTML;
 }
 
