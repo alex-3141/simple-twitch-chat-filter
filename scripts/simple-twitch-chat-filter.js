@@ -54,7 +54,7 @@ const chatTypeSelectors = {
     textSelector: '[data-a-target="chat-message-text"]', // This selector will return the raw text content of a text segment
   },
   twitchVOD: {
-    lineSelector: ".vod-message",
+    lineSelector: ".video-chat__message-list-wrapper > div > ul > li",
     containerSelector: ".video-chat__message > span[class='']",
     textSelector: '[data-a-target="chat-message-text"]',
   },
